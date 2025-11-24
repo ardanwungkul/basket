@@ -33,7 +33,7 @@ const showQRScanner = ref(false)
 const qrError = ref('')
 
 const selectedMember = ref(null)
-const form = ref({ member: null, status: 'present', reason: '' })
+const form = ref({ member: null, status: 'present', reason: null })
 
 // qr scanner state
 const scanResult = ref(null)
@@ -136,7 +136,7 @@ const datas = computed(() => {
               ? 'Tidak Hadir'
               : attendance.status
           : 'Belum Absen',
-        reason: attendance?.reason || '',
+        reason: attendance?.reason || null,
         attendance_id: attendance?.id || null,
       }
     })
@@ -149,6 +149,7 @@ const filters = ref({
 
 function openAttendanceModal(member) {
   selectedMember.value = member
+
   form.value = {
     member: member,
     status:
@@ -157,38 +158,49 @@ function openAttendanceModal(member) {
         : member.status === 'Tidak Hadir'
           ? 'absent'
           : 'present',
-    reason: member.reason !== '-' ? member.reason : '',
+    reason: member.reason !== '-' ? member.reason : null,
   }
+
   showModal.value = true
 }
 
 async function saveManualAttendance() {
-  if (form.value.status === 'absent' && !form.value.reason.trim()) {
+  if (form.value.status === 'absent' && !form.value.reason) {
     responseStore.addError('Harap isi alasan ketidakhadiran.')
-  } else {
-    saving.value = true
+    return
+  }
 
-    const attendanceForm = {
-      member_id: selectedMember.value.id,
-      training_schedule_id: scheduleId.value,
-      status: form.value.status,
-      reason: form.value.status === 'absent' ? form.value.reason : null,
+  saving.value = true
+
+  const attendanceForm = {
+    member_id: selectedMember.value.id,
+    training_schedule_id: scheduleId.value,
+    status: form.value.status,
+    reason: form.value.status === 'absent' ? form.value.reason : null,
+  }
+
+  try {
+    if (selectedMember.value.attendance_id) {
+      await attendanceStore.updateAttendance(selectedMember.value.attendance_id, attendanceForm)
+    } else {
+      await attendanceStore.addAttendance(attendanceForm)
     }
 
-    try {
-      if (selectedMember.value.attendance_id)
-        await attendanceStore.updateAttendance(selectedMember.value.attendance_id, attendanceForm)
-      else await attendanceStore.addAttendance(attendanceForm)
+    showModal.value = false
+    await fetchData()
+  } catch (error) {
+    console.error('Attendance error:', error)
 
-      showModal.value = false
-      await fetchData()
-    } catch (e) {
-      console.error('Attendance error:', e)
-      const errorMsg = e.response?.data?.message || 'Gagal menyimpan absensi.'
-      responseStore.addError('Gagal menyimpan absensi.')
-    } finally {
-      saving.value = false
+    if (error.response?.status === 422) {
+      // Handle validation errors
+      const errorMsg = error.response.data?.message || 'Member tidak terdaftar dalam jadwal latihan ini'
+      responseStore.addError(errorMsg)
+    } else {
+      const errorMsg = error.response?.data?.message || 'Gagal menyimpan absensi.'
+      responseStore.addError(errorMsg)
     }
+  } finally {
+    saving.value = false
   }
 }
 
@@ -203,6 +215,7 @@ function closeQRScanner() {
   showQRScanner.value = false
   qrError.value = ''
   scanResult.value = null
+  scanLoading.value = false
 }
 
 async function onQRCodeDetected(detectedCodes) {
@@ -235,32 +248,22 @@ async function processQRCode(qrData) {
       return
     }
 
-    const result = await attendanceStore.scanQRAttendance(qrData, scheduleId.value)
+    await attendanceStore.scanQRAttendance(qrData, scheduleId.value)
+    await fetchData()
+    qrError.value = ''
 
-    // Jika berhasil, tampilkan pesan sukses
-    scanResult.value = {
-      success: true,
-      message: result.message,
-      memberName: result.data.member?.name || 'Unknown Member',
-    }
-
-    // Auto close setelah 2 detik
-    setTimeout(() => {
-      closeQRScanner()
-      fetchData()
-    }, 2000)
   } catch (error) {
-    // Handle error response dari server
-    if (error.response?.data?.message) {
-      scanResult.value = {
-        success: false,
-        message: error.response.data.message,
+    if (error.response?.status === 422) {
+      // Handle validation errors (member tidak termasuk jadwal/KU tidak sesuai)
+      if (error.response.data?.message) {
+        qrError.value = error.response.data.message
+      } else {
+        qrError.value = 'Member tidak terdaftar dalam jadwal latihan ini'
       }
+    } else if (error.response?.data?.message) {
+      qrError.value = error.response.data.message
     } else {
-      scanResult.value = {
-        success: false,
-        message: 'Gagal melakukan absensi: ' + (error.message || 'Terjadi kesalahan'),
-      }
+      qrError.value = 'Gagal melakukan absensi: ' + (error.message || 'Terjadi kesalahan')
     }
   }
 }
@@ -321,60 +324,34 @@ onMounted(async () => {
     <div class="py-3 space-y-3">
       <form @submit.prevent>
         <div
-          class="flex flex-row justify-between items-start md:items-center bg-white rounded-lg shadow px-5 py-4 gap-4"
-        >
-          <button
-            type="button"
-            @click="openQRScanner"
-            class="flex items-center gap-2 bg-piper-600 hover:bg-piper-700 text-white px-5 py-2 rounded-lg transition shadow cursor-pointer md:text-sm text-xs"
-          >
+          class="flex flex-row justify-between items-start md:items-center bg-white rounded-lg shadow px-5 py-4 gap-4">
+          <button type="button" @click="openQRScanner"
+            class="flex md:justify-between items-center gap-2 bg-piper-600 hover:bg-piper-700 text-white px-5 py-2 rounded-lg transition shadow cursor-pointer md:text-sm text-xs">
             <i class="fas fa-qrcode"></i>
             <span class="whitespace-nowrap">Scan QR Code</span>
           </button>
 
-          <div class="relative w-full">
-            <input
-              v-model="filters['global'].value"
-              type="text"
-              placeholder="Cari..."
-              class="border border-gray-300 rounded-lg px-2.5 py-2 md:text-sm text-xs focus:outline-0 shadow-lg w-full"
-            />
-            <span class="absolute left-3 top-2.5 text-gray-400"> </span>
-          </div>
+          <input v-model="filters['global'].value" type="text" placeholder="Cari..."
+            class="border border-gray-300 rounded-lg px-2.5 py-2 md:text-sm text-xs focus:outline-0 shadow-lg w-full md:w-48" />
         </div>
       </form>
 
       <!-- TABLE -->
       <form @submit.prevent>
         <div class="!rounded-lg !overflow-hidden shadow bg-white">
-          <DataTable
-            :value="datas"
-            v-model:filters="filters"
-            paginator
-            :rows="10"
-            dataKey="id"
-            :loading="loading"
-            stripedRows
-            removableSort
-            class="p-datatable-sm"
-            :pt="{
+          <DataTable :value="datas" v-model:filters="filters" paginator :rows="10" dataKey="id" :loading="loading"
+            stripedRows removableSort class="p-datatable-sm" :pt="{
               thead: { class: 'md:!text-sm !text-xs font-light' },
               tbody: { class: 'md:!text-sm !text-xs font-light' },
               pcPaginator: { content: { class: 'text-xs' } },
-            }"
-          >
+            }">
             <!-- Nama -->
             <Column field="name" header="Nama" />
 
             <!-- KU -->
-            <Column
-              field="ku"
-              header="KU"
-              class="w-20"
-              :pt="{
-                columnHeaderContent: { class: '!justify-center' },
-              }"
-            >
+            <Column field="ku" header="KU" class="w-20" :pt="{
+              columnHeaderContent: { class: '!justify-center' },
+            }">
               <template #body="{ data }">
                 <p class="text-center">
                   {{ calculateAgeGroup(data.date_of_birth) }}
@@ -383,52 +360,36 @@ onMounted(async () => {
             </Column>
 
             <!-- Jenis Kelamin -->
-            <Column
-              field="gender"
-              header="Jenis Kelamin"
-              class="w-40 text-center"
-              :pt="{
-                columnHeaderContent: { class: '!justify-center' },
-              }"
-            >
+            <Column field="gender" header="Jenis Kelamin" class="w-40 text-center" :pt="{
+              columnHeaderContent: { class: '!justify-center' },
+            }">
               <template #body="{ data }">
                 <p class="text-center">{{ data.gender }}</p>
               </template>
             </Column>
 
             <!-- Status -->
-            <Column
-              field="status"
-              header="Status"
-              :pt="{
-                columnHeaderContent: { class: '!justify-center' },
-              }"
-            >
+            <Column field="status" header="Status" :pt="{
+              columnHeaderContent: { class: '!justify-center' },
+            }">
               <template #body="{ data }">
-                <div
-                  class="text-center rounded-lg px-3 py-1 w-min mx-auto whitespace-nowrap border shadow-lg text-xs"
+                <div class="text-center rounded-lg px-3 py-1 w-min mx-auto whitespace-nowrap border shadow-lg text-xs"
                   :class="[
                     data.status === 'Hadir'
                       ? 'bg-green-300 text-green-800 border-green-800'
                       : data.status === 'Tidak Hadir'
                         ? 'bg-red-300 text-red-800 border-red-800'
                         : 'bg-gray-200 text-gray-800 border-gray-800',
-                  ]"
-                >
+                  ]">
                   <p>{{ data.status }}</p>
                 </div>
               </template>
             </Column>
 
             <!-- Alasan -->
-            <Column
-              field="reason"
-              header="Alasan"
-              class="w-48 text-center"
-              :pt="{
-                columnHeaderContent: { class: '!justify-center' },
-              }"
-            >
+            <Column field="reason" header="Alasan" class="w-48 text-center" :pt="{
+              columnHeaderContent: { class: '!justify-center' },
+            }">
               <template #body="{ data }">
                 <p class="truncate block max-w-xs text-center" :title="data.reason">
                   {{ data.reason || '-' }}
@@ -437,30 +398,21 @@ onMounted(async () => {
             </Column>
 
             <!-- Aksi -->
-            <Column
-              field="action"
-              header=""
-              :pt="{
-                columnHeaderContent: { class: '!justify-center' },
-              }"
-            >
+            <Column field="action" header="" :pt="{
+              columnHeaderContent: { class: '!justify-center' },
+            }">
               <template #body="{ data }">
                 <div class="flex justify-center gap-3">
-                  <button
-                    type="button"
-                    @click="openAttendanceModal(data)"
-                    v-tooltip.left="{
-                      value: data.status === 'Belum Absen' ? 'Absen' : 'Ubah',
-                      showDelay: 1000,
-                      hideDelay: 300,
-                    }"
-                    :class="[
-                      data.status === 'Belum Absen'
-                        ? 'bg-piper-600 text-white hover:bg-piper-700'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200',
-                      'text-xs rounded-md px-3 py-1.5 font-medium transition-all cursor-pointer',
-                    ]"
-                  >
+                  <button type="button" @click="openAttendanceModal(data)" v-tooltip.left="{
+                    value: data.status === 'Belum Absen' ? 'Absen' : 'Ubah',
+                    showDelay: 1000,
+                    hideDelay: 300,
+                  }" :class="[
+                    data.status === 'Belum Absen'
+                      ? 'bg-piper-600 text-white hover:bg-piper-700'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200',
+                    'text-xs rounded-md px-3 py-1.5 font-medium transition-all cursor-pointer',
+                  ]">
                     {{ data.status === 'Belum Absen' ? 'Absen' : 'Ubah' }}
                   </button>
                 </div>
@@ -486,27 +438,21 @@ onMounted(async () => {
       </form>
 
       <!-- MODAL ABSENSI -->
-      <Dialog
-        v-model:visible="showModal"
-        :header="selectedMember ? `Absen: ${selectedMember.name}` : 'Absen Manual'"
-        modal
-        class="w-full max-w-md"
-      >
+      <Dialog v-model:visible="showModal" :header="selectedMember ? `Absen: ${selectedMember.name}` : 'Absen Manual'"
+        modal class="w-full max-w-md">
         <form @submit.prevent="saveManualAttendance">
           <div v-if="selectedMember" class="space-y-4">
             <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
               <p class="text-blue-700">
                 <span class="font-medium">Status saat ini:</span>
-                <span
-                  :class="[
-                    selectedMember.status === 'Hadir'
-                      ? 'text-green-600'
-                      : selectedMember.status === 'Tidak Hadir'
-                        ? 'text-red-600'
-                        : 'text-gray-600',
-                    'ml-1 font-medium',
-                  ]"
-                >
+                <span :class="[
+                  selectedMember.status === 'Hadir'
+                    ? 'text-green-600'
+                    : selectedMember.status === 'Tidak Hadir'
+                      ? 'text-red-600'
+                      : 'text-gray-600',
+                  'ml-1 font-medium',
+                ]">
                   {{ selectedMember.status }}
                 </span>
               </p>
@@ -514,41 +460,34 @@ onMounted(async () => {
 
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Status Kehadiran</label>
-              <select
-                v-model="form.status"
+              <select v-model="form.status"
                 class="border border-gray-300 rounded-lg w-full px-3 py-2 text-sm focus:ring-2 focus:ring-piper-500 focus:border-piper-500 cursor-pointer"
-                :disabled="saving"
-              >
+                :disabled="saving">
                 <option value="present">Hadir</option>
                 <option value="absent">Tidak Hadir</option>
               </select>
             </div>
 
             <div v-if="form.status === 'absent'">
-              <label class="block text-sm font-medium text-gray-700 mb-1">Alasan</label>
-              <textarea
-                v-model="form.reason"
-                rows="3"
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                Alasan
+                <span class="text-red-500">*</span>
+              </label>
+              <textarea rows="3" id="reason" name="reason" type="text" v-model="form.reason"
                 placeholder="Masukkan alasan ketidakhadiran..."
                 class="border border-gray-300 rounded-lg w-full px-3 py-2 text-sm focus:ring-2 focus:ring-piper-500 focus:border-piper-500"
-                :disabled="saving"
-                required
-              ></textarea>
+                :disabled="saving">
+        </textarea>
+              <p v-if="formError" class="text-red-500 text-xs mt-1">{{ formError }}</p>
             </div>
 
             <div class="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                @click="showModal = false"
-                class="px-4 py-2 text-sm rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 cursor-pointer"
-              >
+              <button type="button" @click="closeModal"
+                class="px-4 py-2 text-sm rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 cursor-pointer">
                 Batal
               </button>
-              <button
-                type="submit"
-                :disabled="saving || (form.status === 'absent' && !form.reason.trim())"
-                class="px-4 py-2 text-sm rounded-lg bg-piper-600 text-white hover:bg-piper-700 flex items-center gap-2 cursor-pointer"
-              >
+              <button type="submit" :disabled="saving"
+                class="px-4 py-2 text-sm rounded-lg bg-piper-600 text-white hover:bg-piper-700 flex items-center gap-2 cursor-pointer disabled:opacity-50">
                 <i v-if="saving" class="fas fa-spinner fa-spin text-sm"></i>
                 {{ saving ? 'Menyimpan...' : 'Simpan' }}
               </button>
@@ -558,80 +497,39 @@ onMounted(async () => {
       </Dialog>
 
       <!-- MODAL QR SCANNER -->
-      <Dialog
-        v-model:visible="showQRScanner"
-        header="Scan QR Code Absensi"
-        :modal="true"
-        :closable="!scanLoading"
-        class="w-full max-w-2xl"
-      >
+      <Dialog v-model:visible="showQRScanner" header="Scan QR Code Absensi" :modal="true" :closable="!scanLoading"
+        class="w-full max-w-2xl" @hide="closeQRScanner">
         <form @submit.prevent>
           <div class="space-y-4">
-            <div
-              v-if="qrError && !scanResult"
-              class="bg-red-50 border border-red-200 rounded-lg p-4"
-            >
-              <div class="flex items-center gap-2">
-                <i class="fas fa-exclamation-triangle text-red-500 text-xl"></i>
-                <p class="text-red-700 text-sm">{{ qrError }}</p>
-              </div>
-            </div>
 
-            <div
-              v-if="scanResult"
-              :class="[
-                scanResult.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200',
-                'border rounded-lg p-4',
-              ]"
-            >
-              <div class="flex items-center gap-2">
-                <i
-                  :class="[
-                    scanResult.success
-                      ? 'fas fa-check-circle text-green-500'
-                      : 'fas fa-exclamation-circle text-red-500',
-                    'text-xl',
-                  ]"
-                ></i>
-                <div>
-                  <p
-                    :class="[scanResult.success ? 'text-green-800' : 'text-red-800', 'font-medium']"
-                  >
-                    {{ scanResult.message }}
-                  </p>
-                  <p
-                    v-if="scanResult.memberName"
-                    class="text-sm mt-1"
-                    :class="scanResult.success ? 'text-green-600' : 'text-red-600'"
-                  >
-                    Member: <strong>{{ scanResult.memberName }}</strong>
-                  </p>
-                </div>
-              </div>
-            </div>
 
-            <div v-if="!scanResult" class="relative">
-              <div
-                class="border-2 border-dashed border-gray-300 rounded-lg overflow-hidden bg-gray-50"
-              >
-                <qrcode-stream
-                  v-if="showQRScanner && !scanLoading"
-                  @detect="onQRCodeDetected"
-                  @error="onCameraError"
-                  @init="onCameraInit"
-                  :camera="cameraPermission === 'denied' ? 'off' : 'auto'"
-                  class="w-full h-64 md:h-96"
-                >
-                  <div
-                    v-if="scanLoading"
-                    class="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center"
-                  >
+            <!-- Scanner area -->
+            <div class="relative">
+              <div class="rounded-lg overflow-hidden bg-gray-300">
+                <qrcode-stream v-if="showQRScanner && !scanLoading && cameraPermission !== 'denied'"
+                  @detect="onQRCodeDetected" @error="onCameraError" @init="onCameraInit"
+                  :camera="cameraPermission === 'denied' ? 'off' : 'auto'" :paused="scanLoading"
+                  class="w-full h-64 md:h-96">
+                  <!-- Overlay loading -->
+                  <div v-if="scanLoading"
+                    class="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center">
                     <div class="text-white text-center">
-                      <i class="fas fa-spinner fa-spin text-2xl mb-2"></i>
-                      <p>Memproses QR Code...</p>
+                      <i class="fas fa-spinner fa-spin text-3xl mb-3"></i>
+                      <p class="text-lg font-medium">Memproses QR Code...</p>
+                      <p class="text-sm opacity-80 mt-1">Mohon tunggu sebentar</p>
                     </div>
                   </div>
                 </qrcode-stream>
+
+                <!-- Tampilan ketika kamera error -->
+                <div v-if="cameraPermission === 'denied'"
+                  class="w-full h-64 md:h-96 flex items-center justify-center bg-gray-100">
+                  <div class="text-center text-gray-500">
+                    <i class="fas fa-camera-slash text-3xl mb-3"></i>
+                    <p class="font-medium">Akses Kamera Ditolak</p>
+                    <p class="text-sm mt-1">Silakan izinkan akses kamera untuk menggunakan scanner</p>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -643,18 +541,13 @@ onMounted(async () => {
                 <li>• Pastikan QR Code berada dalam area kotak scanner</li>
                 <li>• Pastikan pencahayaan cukup</li>
                 <li>• Jaga jarak yang tepat dari kamera</li>
-                <li>• Absensi otomatis tersimpan ketika QR terdeteksi</li>
               </ul>
             </div>
 
             <div class="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                @click="closeQRScanner"
-                :disabled="scanLoading"
-                class="px-4 py-2 text-sm rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
-              >
-                Tutup
+              <button type="button" @click="closeQRScanner" :disabled="scanLoading"
+                class="px-4 py-2 text-sm rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition disabled:opacity-50 cursor-pointer">
+                Tutup Scanner
               </button>
             </div>
           </div>

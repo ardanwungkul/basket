@@ -144,7 +144,7 @@ function calculateAgeGroup(date) {
           <div class="flex justify-end gap-3">
             <router-link
               :to="{
-                name: 'member.edit',
+                name: 'admin.member.edit',
                 params: {
                   id: member?.id,
                 },

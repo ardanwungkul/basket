@@ -8,6 +8,8 @@ import { useRouter } from 'vue-router'
 import ConfirmPopup from 'primevue/confirmpopup'
 import QRCode from 'qrcode'
 import { useConfirm } from 'primevue/useconfirm'
+import placeholderImage from '@/assets/images/placeholder-person.webp'
+
 
 const router = useRouter()
 const memberStore = useMemberStore()

@@ -342,6 +342,7 @@ const backendUrl = import.meta.env.VITE_APP_BACKEND_URL
         </DataTable>
       </div>
     </div>
+    <!-- Dialog QR Code -->
     <Dialog
       v-model:visible="visible"
       modal
