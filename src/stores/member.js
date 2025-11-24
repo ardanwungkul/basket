@@ -95,11 +95,17 @@ export const useMemberStore = defineStore('member', {
       const uiStore = useUIStore()
       uiStore.isLoading = true
       const responseStore = useResponseStore()
+      const authStore = useAuthStore()
+      const auth = authStore.decryptedUserData
 
       try {
         const response = await api.put('/member/' + id, form)
         responseStore.addSuccess(response.data.message)
-        router.push({ name: 'member.index' })
+        if(auth.role == 'admin'){
+          router.push({ name: 'admin.member.index' })
+        }else{
+          router.push({ name: 'member.index' })
+        }
       } catch (error) {
         console.log(error)
         if (error.response && error.response.status !== 422) throw error

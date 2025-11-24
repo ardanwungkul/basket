@@ -311,6 +311,26 @@ const coachRoutes = [
     },
   },
   {
+    path: '/coach/attendance/history',
+    name: 'coach.attendance.history.index',
+    component: () => import('@/pages/coach/attendance/history/Index.vue'),
+    meta: {
+      auth: true,
+      title: 'Riwayat Jadwal Latihan',
+      allowedRoles: ['coach'],
+    },
+  },
+   {
+    path: '/coach/attendance/history/:id',
+    name: 'coach.attendance.history.show',
+    component: () => import('@/pages/coach/attendance/history/Show.vue'),
+    meta: {
+      auth: true,
+      title: 'Riwayat Absensi',
+      allowedRoles: ['coach'],
+    },
+  },
+  {
     path: '/coach/training',
     name: 'coach.training.index',
     component: () => import('@/pages/coach/training/Index.vue'),

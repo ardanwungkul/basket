@@ -42,6 +42,7 @@ export const useAuthStore = defineStore('auth', {
         uiStore.isLoading = false
       }
     },
+
     async login(form) {
       const uiStore = useUIStore()
       const responseStore = useResponseStore()
@@ -75,6 +76,7 @@ export const useAuthStore = defineStore('auth', {
         uiStore.isLoading = false
       }
     },
+
     async register(form) {
       const uiStore = useUIStore()
       const responseStore = useResponseStore()
@@ -99,6 +101,58 @@ export const useAuthStore = defineStore('auth', {
         uiStore.isLoading = false
       }
     },
+
+    // Profile
+    async updateProfile(formData) {
+      const uiStore = useUIStore()
+      const responseStore = useResponseStore()
+      uiStore.isLoading = true
+
+      try {
+        const response = await api.put('profile', formData)
+
+        // Update encrypted user data dengan data terbaru
+        const updatedUser = { ...this.decryptedUserData, ...response.data.user }
+        const encrypted = CryptoJS.AES.encrypt(JSON.stringify(updatedUser), key).toString()
+        this.encryptedUserData = encrypted
+
+        return { success: true, data: response.data }
+      } catch (error) {
+        console.log('Update profile error:', error)
+
+        if (error.response && error.response.status === 422) {
+          const errors = error.response.data?.errors
+          if (errors) {
+            Object.values(errors).forEach((fieldErrors) => {
+              if (Array.isArray(fieldErrors)) {
+                fieldErrors.forEach((err) => responseStore.addError(err))
+              }
+            })
+          }
+          return {
+            success: false,
+            error: error.response.data?.message || 'Terjadi kesalahan validasi'
+          }
+        } else if (error.response && error.response.status === 401) {
+          // Token expired or invalid - redirect to login
+          this.logout()
+          return {
+            success: false,
+            error: 'Sesi telah berakhir. Silakan login kembali.'
+          }
+        } else if (error.response && error.response.status === 404) {
+          return {
+            success: false,
+            error: 'User tidak ditemukan'
+          }
+        }
+
+        throw error
+      } finally {
+        uiStore.isLoading = false
+      }
+    },
+
     async logout() {
       const uiStore = useUIStore()
       uiStore.startLoading()
@@ -110,6 +164,7 @@ export const useAuthStore = defineStore('auth', {
     },
   },
 })
+
 if (import.meta.hot) {
   import.meta.hot.accept(acceptHMRUpdate(useAuthStore, import.meta.hot))
 }

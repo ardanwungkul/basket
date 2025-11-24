@@ -69,11 +69,12 @@ const schedules = computed(() => {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
+  // Filter untuk mengambil hanya jadwal yang sudah lewat
   const allSchedules = training.value
     .filter((schedule) => {
       const scheduleDate = new Date(schedule.date)
       scheduleDate.setHours(0, 0, 0, 0)
-      return scheduleDate >= today
+      return scheduleDate < today // Hanya jadwal yang sudah lewat
     })
     .map((schedule) => ({
       label: new Date(schedule.date).toLocaleDateString('id-ID', {
@@ -87,7 +88,7 @@ const schedules = computed(() => {
       title: schedule.title,
       ku: getMemberKUs(schedule.members),
     }))
-    .sort((a, b) => new Date(a.date) - new Date(b.date))
+    .sort((a, b) => new Date(b.date) - new Date(a.date)) // Urutkan dari yang terbaru
 
   // Update available KUs whenever schedules change
   availableKUs.value = extractAllKUs(allSchedules)
@@ -119,17 +120,16 @@ onMounted(async () => {
 </script>
 
 <template>
-  <CoachLayouts>
+  <CoachLayouts backRoute="coach.attendance.index">
     <div class="py-3 space-y-3">
+
       <!-- HEADER -->
       <div class="rounded-lg bg-white shadow px-5 py-3">
         <div class="flex justify-between items-center">
-           <router-link
-                :to="{ name: 'coach.attendance.history.index' }"
-                class="md:text-sm text-xs bg-piper-600 text-white rounded-lg px-5 py-2 font-light cursor-pointer hover:opacity-90 transition-all duration-300 shadow-lg"
-              >
-                Riwayat Absensi
-              </router-link>
+          <div>
+            <h1 class="text-xl font-bold text-gray-800">Riwayat Jadwal Latihan</h1>
+            <p class="text-sm text-gray-600 mt-1">Menampilkan jadwal latihan yang sudah berlalu</p>
+          </div>
           <div class="flex items-center gap-3">
             <!-- KU Filter -->
             <div class="flex items-center gap-2">
@@ -163,7 +163,7 @@ onMounted(async () => {
         
         <!-- Active Filter Info -->
         <div v-if="selectedKU" class="mt-3 flex items-center gap-2 text-sm">
-          <span class="text-gray-600">Menampilkan jadwal untuk:</span>
+          <span class="text-gray-600">Menampilkan riwayat untuk:</span>
           <span class="bg-piper-100 text-piper-800 px-2 py-1 rounded-md font-medium">
             KU {{ selectedKU }}
           </span>
@@ -176,7 +176,7 @@ onMounted(async () => {
       <div class="bg-white rounded-lg shadow p-5">
         <div v-if="loading" class="text-center py-8">
           <i class="fas fa-spinner fa-spin text-2xl text-gray-400 mb-2"></i>
-          <p class="text-gray-500">Memuat jadwal latihan...</p>
+          <p class="text-gray-500">Memuat riwayat jadwal latihan...</p>
         </div>
 
         <div v-else-if="schedules.length > 0" class="space-y-4">
@@ -184,8 +184,8 @@ onMounted(async () => {
             <router-link
               v-for="s in schedules"
               :key="s.value"
-              :to="`/coach/attendance/${s.value}`"
-              class="cursor-pointer rounded-xl border-2 shadow-sm p-3 text-left transition-all duration-300 hover:shadow-lg hover:border-piper-500 hover:scale-105 flex flex-col justify-between bg-white border-gray-200 text-gray-700"
+              :to="`/coach/attendance/history/${s.value}`"
+              class="cursor-pointer rounded-xl border-2 shadow-sm p-3 text-left transition-all duration-300 hover:shadow-lg hover:border-gray-400 hover:scale-105 flex flex-col justify-between bg-white border-gray-200 text-gray-700"
             >
               <div class="w-full">
                 <!-- Title -->
@@ -199,6 +199,13 @@ onMounted(async () => {
                 <p class="md:text-sm text-xs mb-1 text-gray-600">
                   {{ s.label }}
                 </p>
+
+                <!-- Status Past -->
+                <div class="mb-2">
+                  <span class="inline-block px-2 py-1 rounded-lg text-xs font-medium bg-gray-200 text-gray-700">
+                    <i class="fas fa-history mr-1"></i>Sudah Berlalu
+                  </span>
+                </div>
 
                 <!-- KU Information -->
                 <div class="mt-auto">
@@ -216,17 +223,17 @@ onMounted(async () => {
         <div v-else class="text-center py-8 text-gray-500">
           <i class="far fa-calendar-times text-3xl mb-3 text-gray-400"></i>
           <p class="text-lg font-medium mb-2">
-            {{ selectedKU ? `Tidak ada jadwal untuk KU ${selectedKU}` : 'Tidak ada jadwal latihan' }}
+            {{ selectedKU ? `Tidak ada riwayat untuk KU ${selectedKU}` : 'Tidak ada riwayat jadwal latihan' }}
           </p>
           <p class="text-sm">
-            {{ selectedKU ? 'Tidak ada jadwal latihan yang sesuai dengan filter KU' : 'Tidak ada jadwal latihan yang akan datang' }}
+            {{ selectedKU ? 'Tidak ada riwayat jadwal latihan yang sesuai dengan filter KU' : 'Belum ada jadwal latihan yang sudah berlalu' }}
           </p>
           <button 
             v-if="selectedKU"
             @click="clearFilter"
             class="mt-3 text-sm text-piper-600 hover:text-piper-700 font-medium"
           >
-            Tampilkan semua jadwal
+            Tampilkan semua riwayat
           </button>
         </div>
       </div>

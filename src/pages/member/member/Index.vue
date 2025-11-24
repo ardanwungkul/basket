@@ -340,5 +340,42 @@ const backendUrl = import.meta.env.VITE_APP_BACKEND_URL
         </DataTable>
       </div>
     </div>
+     <!-- Dialog QR Code -->
+    <Dialog
+      v-model:visible="visible"
+      modal
+      header="QR Code Member"
+      :style="{ width: '350px' }"
+      :breakpoints="{ '960px': '75vw', '641px': '90vw' }"
+    >
+      <div class="flex flex-col items-center gap-2">
+        <div v-if="selectedMember">
+          <p class="text-center font-semibold">{{ selectedMember.name }}</p>
+        </div>
+
+        <div class="border-2 border-gray-200 p-4 rounded-lg">
+          <img :src="qrCodeUrl" alt="QR Code" class="w-48 h-48 mx-auto" v-if="qrCodeUrl" />
+          <div v-else class="w-48 h-48 flex items-center justify-center bg-gray-100">
+            <p class="text-gray-500">Generating QR Code...</p>
+          </div>
+        </div>
+
+        <div class="flex justify-center gap-2 mt-4">
+          <button
+            @click="visible = false"
+            class="px-4 py-2 bg-gray-500 text-white rounded-lg text-sm hover:bg-gray-600 transition-colors"
+          >
+            Tutup
+          </button>
+          <button
+            v-if="qrCodeUrl"
+            @click="downloadQR"
+            class="px-4 py-2 bg-piper-600 text-white rounded-lg text-sm hover:bg-piper-700 transition-colors"
+          >
+            Download QR
+          </button>
+        </div>
+      </div>
+    </Dialog>
   </MemberLayouts>
 </template>

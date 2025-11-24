@@ -45,27 +45,32 @@ onMounted(async () => {
               class="cursor-pointer rounded-xl border-2 shadow-sm md:p-6 p-3 text-left transition-all duration-300 hover:shadow-lg hover:border-piper-500 hover:scale-105 md:min-h-[160px] flex flex-col justify-between bg-white border-gray-200 text-gray-700"
             >
               <div class="w-full">
-                <!-- Nama Anak -->
-                <div class="mb-3">
-                  <p class="font-semibold md:text-lg text-base leading-tight line-clamp-2">
-                    {{ member.name }}
-                  </p>
+                <div class="flex items-start justify-between mb-3">
+                  <div class="flex items-center gap-2">
+                    <i 
+                      class="fas text-piper-500 text-lg" 
+                      :class="member.gender === 'Laki Laki' ? 'fa-male' : 'fa-female'"
+                    ></i>
+                    <p class="font-semibold text-lg leading-tight line-clamp-2">{{ member.name }}</p>
+                  </div>
                 </div>
 
                 <!-- Informasi Umur/KU -->
-                <div class="space-y-1 md:text-sm text-xs text-gray-600">
+                <div class="space-y-2 text-sm text-gray-600">
                   <p class="flex items-center gap-2">
+                    <i class="fas fa-birthday-cake text-gray-400 w-4"></i>
                     <span>Usia: {{ calculateAgeGroup(member.date_of_birth) }} tahun</span>
                   </p>
                   <p class="flex items-center gap-2">
+                    <i class="fas fa-venus-mars text-gray-400 w-4"></i>
                     <span>{{ member.gender === 'Laki Laki' ? 'Laki-laki' : 'Perempuan' }}</span>
                   </p>
                 </div>
 
                 <!-- Status -->
-                <div class="mt-4">
+                <div class="mt-4 flex justify-between items-center">
                   <span
-                    class="inline-block px-3 py-1 rounded-lg text-xs font-medium bg-green-100 text-green-800 border border-green-200"
+                    class="inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium bg-green-100 text-green-800 border border-green-200"
                   >
                     <i class="fas fa-check-circle mr-1"></i>
                     Aktif
@@ -77,8 +82,9 @@ onMounted(async () => {
         </div>
 
         <div v-else class="text-center py-8 text-gray-500">
-          <i class="fas fa-child md:text-3xl text-2xl mb-3 text-gray-400"></i>
-          <p class="md:text-lg text-base font-medium mb-2">Belum ada anak terdaftar</p>
+          <i class="fas fa-child text-4xl mb-3 text-gray-300"></i>
+          <p class="text-lg font-medium mb-2">Belum ada anak terdaftar</p>
+          <p class="text-sm">Silakan tambahkan data anak untuk memulai</p>
         </div>
       </div>
     </div>
