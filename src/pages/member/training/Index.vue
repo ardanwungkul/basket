@@ -42,39 +42,41 @@ onMounted(async () => {
               v-for="member in members"
               :key="member.id"
               :to="{ name: 'member.training.show', params: { id: member.id } }"
-              class="cursor-pointer rounded-xl border-2 shadow-sm md:p-6 p-3 text-left transition-all duration-300 hover:shadow-lg hover:border-piper-500 hover:scale-105 md:min-h-[160px] flex flex-col justify-between bg-white border-gray-200 text-gray-700"
+              class="cursor-pointer rounded-xl border-2 shadow-sm p-3 text-left transition-all duration-300 hover:shadow-lg hover:border-piper-500 hover:scale-105 flex flex-col justify-between bg-white border-gray-200 text-gray-700"
             >
-              <div class="w-full">
-                <div class="flex items-start justify-between mb-3">
+              <div class="w-full space-y-3">
+                <div class="flex items-start justify-between">
                   <div class="flex items-center gap-2">
-                    <i 
-                      class="fas text-piper-500 text-lg" 
+                    <i
+                      class="fa-solid text-piper-500 text-lg flex-none"
                       :class="member.gender === 'Laki Laki' ? 'fa-male' : 'fa-female'"
                     ></i>
-                    <p class="font-semibold text-lg leading-tight line-clamp-2">{{ member.name }}</p>
+                    <p class="font-semibold text-sm leading-tight line-clamp-1">
+                      {{ member.name }}
+                    </p>
                   </div>
                 </div>
 
                 <!-- Informasi Umur/KU -->
-                <div class="space-y-2 text-sm text-gray-600">
+                <div class="space-y-1 text-sm text-gray-600">
                   <p class="flex items-center gap-2">
                     <i class="fas fa-birthday-cake text-gray-400 w-4"></i>
-                    <span>Usia: {{ calculateAgeGroup(member.date_of_birth) }} tahun</span>
+                    <span class="text-xs">{{ calculateAgeGroup(member.date_of_birth) }} tahun</span>
                   </p>
                   <p class="flex items-center gap-2">
                     <i class="fas fa-venus-mars text-gray-400 w-4"></i>
-                    <span>{{ member.gender === 'Laki Laki' ? 'Laki-laki' : 'Perempuan' }}</span>
+                    <span class="text-xs">{{
+                      member.gender === 'Laki Laki' ? 'Laki-laki' : 'Perempuan'
+                    }}</span>
                   </p>
-                </div>
-
-                <!-- Status -->
-                <div class="mt-4 flex justify-between items-center">
-                  <span
-                    class="inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium bg-green-100 text-green-800 border border-green-200"
-                  >
-                    <i class="fas fa-check-circle mr-1"></i>
-                    Aktif
-                  </span>
+                  <div class="flex justify-between items-center">
+                    <span
+                      class="inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium bg-green-100 text-green-800 border border-green-200"
+                    >
+                      <i class="fas fa-check-circle mr-1 text-xs"></i>
+                      Aktif
+                    </span>
+                  </div>
                 </div>
               </div>
             </router-link>

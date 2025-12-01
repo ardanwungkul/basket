@@ -124,6 +124,16 @@ const adminRoutes = [
       allowedRoles: ['admin'],
     },
   },
+  {
+    path: '/admin/report',
+    name: 'admin.report.index',
+    component: () => import('@/pages/admin/report/Index.vue'),
+    meta: {
+      auth: true,
+      title: 'Laporan',
+      allowedRoles: ['admin'],
+    },
+  },
 ]
 
 const parentRoutes = [
@@ -320,7 +330,7 @@ const coachRoutes = [
       allowedRoles: ['coach'],
     },
   },
-   {
+  {
     path: '/coach/attendance/history/:id',
     name: 'coach.attendance.history.show',
     component: () => import('@/pages/coach/attendance/history/Show.vue'),

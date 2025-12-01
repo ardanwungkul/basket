@@ -44,6 +44,11 @@ const sideBarItems = ref([
     label: 'Pembayaran',
     to: 'admin.payment.index',
   },
+  {
+    icon: 'fa-solid fa-file',
+    label: 'Laporan',
+    to: 'admin.report.index',
+  },
 ])
 
 const props = defineProps({

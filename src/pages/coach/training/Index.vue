@@ -532,7 +532,7 @@ const getRemainingMemberNames = computed(() => {
 
           <div class="flex flex-wrap gap-1">
             <span
-              v-for="(member, index) in getLimitedMemberNames"
+              v-for="member in getLimitedMemberNames"
               :key="member.id"
               class="text-xs bg-piper-100 text-rhino-700 px-2 py-1 rounded-full border border-piper-300"
             >
