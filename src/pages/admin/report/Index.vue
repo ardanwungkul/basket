@@ -4,6 +4,8 @@ import { Column, ColumnGroup, DataTable, DatePicker, InputText, Row, Select } fr
 import { computed, onMounted, ref, watch } from 'vue'
 import { FilterMatchMode } from '@primevue/core/api'
 import { useReportStore } from '@/stores/report'
+import ExcelJS from 'exceljs'
+import { saveAs } from 'file-saver'
 
 const reportStore = useReportStore()
 const loading = ref(true)
@@ -25,6 +27,7 @@ onMounted(async () => {
 async function getMembersByAge() {
   if (selectedAgeGroup.value && year.value && selectedFilterType.value) {
     loading.value = true
+    datas.value = []
     const yearOnly = new Date(year.value).getFullYear()
     await reportStore.getMemberByAge(
       selectedAgeGroup.value.age,
@@ -49,7 +52,7 @@ async function getMembersByAge() {
           des: [],
         }
 
-        member.attendance.forEach((att) => {
+        member?.attendance?.forEach((att) => {
           const monthIndex = new Date(att.date).getMonth()
 
           const monthKeys = [
@@ -81,7 +84,59 @@ async function getMembersByAge() {
         }
       })
     } else if (selectedFilterType.value.type == 'payment') {
-      datas.value = [{ name: 'ardan' }]
+      datas.value = reportStore.members.map((member) => {
+        const months = {
+          jan: [],
+          feb: [],
+          mar: [],
+          apr: [],
+          mei: [],
+          jun: [],
+          jul: [],
+          agu: [],
+          sep: [],
+          okt: [],
+          nov: [],
+          des: [],
+        }
+
+        member?.bill?.forEach((bill) => {
+          const payment = bill?.payment_detail?.[0]?.payment
+
+          if (!payment) return
+
+          const paymentDate = new Date(payment.payment_date)
+          const monthIndex = paymentDate.getMonth()
+
+          const monthKeys = [
+            'jan',
+            'feb',
+            'mar',
+            'apr',
+            'mei',
+            'jun',
+            'jul',
+            'agu',
+            'sep',
+            'okt',
+            'nov',
+            'des',
+          ]
+
+          const key = monthKeys[monthIndex]
+          months[key].push(bill)
+        })
+
+        return {
+          id: member.id,
+          name: member.name,
+          date_of_birth: member.date_of_birth,
+          parent_name: member.parent_name,
+          parent_phone_number: member.parent_phone_number,
+          sibling: member.sibling,
+          ...months,
+        }
+      })
     }
     loading.value = false
   }
@@ -91,8 +146,366 @@ const filters = ref({
   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
 })
 
-const exportCsv = () => {
-  dt.value.exportCSV({ fileName: 'data_member.csv' })
+const exportCsv = async () => {
+  const workbook = new ExcelJS.Workbook()
+  const worksheet = workbook.addWorksheet('Data Member')
+
+  worksheet.columns = [
+    { header: 'Nama', key: 'name', width: 30 },
+    { header: 'Tanggal Lahir', key: 'date_of_birth', width: 20 },
+    { header: 'Nama Orang Tua', key: 'parent_name', width: 20 },
+    { header: 'No Orang Tua', key: 'parent_phone_number', width: 20 },
+    { header: 'Sibling', key: 'sibling', width: 30 },
+    { header: 'Jan', key: 'jan', width: 10 },
+    { header: 'Feb', key: 'feb', width: 10 },
+    { header: 'Mar', key: 'mar', width: 10 },
+    { header: 'Apr', key: 'apr', width: 10 },
+    { header: 'Mei', key: 'mei', width: 10 },
+    { header: 'Jun', key: 'jun', width: 10 },
+    { header: 'Jul', key: 'jul', width: 10 },
+    { header: 'Agu', key: 'agu', width: 10 },
+    { header: 'Sep', key: 'sep', width: 10 },
+    { header: 'Okt', key: 'okt', width: 10 },
+    { header: 'Nov', key: 'nov', width: 10 },
+    { header: 'Des', key: 'des', width: 10 },
+  ]
+
+  worksheet.mergeCells('A1:A2')
+  worksheet.mergeCells('B1:B2')
+  worksheet.mergeCells('C1:C2')
+  worksheet.mergeCells('D1:D2')
+  worksheet.mergeCells('E1:E2')
+  worksheet.mergeCells('F1:Q1')
+
+  worksheet.getCell('A1').value = 'Nama'
+  worksheet.getCell('B1').value = 'Tanggal Lahir'
+  worksheet.getCell('C1').value = 'Nama Orang Tua'
+  worksheet.getCell('D1').value = 'No Orang Tua'
+  worksheet.getCell('E1').value = 'Sibling'
+  worksheet.getCell('F1').value = 'Bulan'
+
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'Mei',
+    'Jun',
+    'Jul',
+    'Agu',
+    'Sep',
+    'Okt',
+    'Nov',
+    'Des',
+  ]
+  const monthCols = {
+    jan: 6,
+    feb: 7,
+    mar: 8,
+    apr: 9,
+    mei: 10,
+    jun: 11,
+    jul: 12,
+    agu: 13,
+    sep: 14,
+    okt: 15,
+    nov: 16,
+    des: 17,
+  }
+  months.forEach((month, idx) => {
+    worksheet.getRow(2).getCell(6 + idx).value = month
+  })
+
+  const row1 = worksheet.getRow(1)
+  row1.height = 20
+  row1.eachCell({ includeEmpty: true }, (cell) => {
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: '222d49' },
+    }
+    cell.alignment = { vertical: 'middle', horizontal: 'center' }
+    cell.border = {
+      top: { style: 'thin' },
+      left: { style: 'thin' },
+      bottom: { style: 'thin' },
+      right: { style: 'thin' },
+    }
+  })
+  const row2 = worksheet.getRow(2)
+  row2.height = 20
+  row2.eachCell({ includeEmpty: true }, (cell) => {
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: '222d49' },
+    }
+    cell.alignment = { vertical: 'middle', horizontal: 'center' }
+    cell.border = {
+      top: { style: 'thin' },
+      left: { style: 'thin' },
+      bottom: { style: 'thin' },
+      right: { style: 'thin' },
+    }
+  })
+
+  datas.value.forEach((item) => {
+    const row = {
+      name: item.name,
+      date_of_birth: new Date(item.date_of_birth).toLocaleDateString('id-ID', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      }),
+      parent_name: item.parent_name,
+      parent_phone_number: item.parent_phone_number,
+      sibling: item.sibling ? item.sibling.map((s) => s.name).join(', \n') : '',
+      jan: item.jan.map((itm) => {
+        const date =
+          selectedFilterType.value.type === 'attendance'
+            ? new Date(itm.date).toLocaleDateString('id-ID', { day: '2-digit' })
+            : new Date(itm?.payment_detail?.[0]?.payment?.payment_date).toLocaleDateString(
+                'id-ID',
+                { day: '2-digit' },
+              )
+
+        return {
+          date,
+          isPresent: selectedFilterType.value.type === 'attendance' && itm.status === 'present',
+          isRegistration:
+            selectedFilterType.value.type === 'payment' && itm?.bill_type === 'registration',
+        }
+      }),
+      feb: item.feb.map((itm) => {
+        const date =
+          selectedFilterType.value.type === 'attendance'
+            ? new Date(itm.date).toLocaleDateString('id-ID', { day: '2-digit' })
+            : new Date(itm?.payment_detail?.[0]?.payment?.payment_date).toLocaleDateString(
+                'id-ID',
+                { day: '2-digit' },
+              )
+
+        return {
+          date,
+          isPresent: selectedFilterType.value.type === 'attendance' && itm.status === 'present',
+          isRegistration:
+            selectedFilterType.value.type === 'payment' && itm?.bill_type === 'registration',
+        }
+      }),
+      mar: item.mar.map((itm) => {
+        const date =
+          selectedFilterType.value.type === 'attendance'
+            ? new Date(itm.date).toLocaleDateString('id-ID', { day: '2-digit' })
+            : new Date(itm?.payment_detail?.[0]?.payment?.payment_date).toLocaleDateString(
+                'id-ID',
+                { day: '2-digit' },
+              )
+
+        return {
+          date,
+          isPresent: selectedFilterType.value.type === 'attendance' && itm.status === 'present',
+          isRegistration:
+            selectedFilterType.value.type === 'payment' && itm?.bill_type === 'registration',
+        }
+      }),
+      apr: item.apr.map((itm) => {
+        const date =
+          selectedFilterType.value.type === 'attendance'
+            ? new Date(itm.date).toLocaleDateString('id-ID', { day: '2-digit' })
+            : new Date(itm?.payment_detail?.[0]?.payment?.payment_date).toLocaleDateString(
+                'id-ID',
+                { day: '2-digit' },
+              )
+
+        return {
+          date,
+          isPresent: selectedFilterType.value.type === 'attendance' && itm.status === 'present',
+          isRegistration:
+            selectedFilterType.value.type === 'payment' && itm?.bill_type === 'registration',
+        }
+      }),
+      mei: item.mei.map((itm) => {
+        const date =
+          selectedFilterType.value.type === 'attendance'
+            ? new Date(itm.date).toLocaleDateString('id-ID', { day: '2-digit' })
+            : new Date(itm?.payment_detail?.[0]?.payment?.payment_date).toLocaleDateString(
+                'id-ID',
+                { day: '2-digit' },
+              )
+
+        return {
+          date,
+          isPresent: selectedFilterType.value.type === 'attendance' && itm.status === 'present',
+          isRegistration:
+            selectedFilterType.value.type === 'payment' && itm?.bill_type === 'registration',
+        }
+      }),
+      jun: item.jun.map((itm) => {
+        const date =
+          selectedFilterType.value.type === 'attendance'
+            ? new Date(itm.date).toLocaleDateString('id-ID', { day: '2-digit' })
+            : new Date(itm?.payment_detail?.[0]?.payment?.payment_date).toLocaleDateString(
+                'id-ID',
+                { day: '2-digit' },
+              )
+
+        return {
+          date,
+          isPresent: selectedFilterType.value.type === 'attendance' && itm.status === 'present',
+          isRegistration:
+            selectedFilterType.value.type === 'payment' && itm?.bill_type === 'registration',
+        }
+      }),
+      jul: item.jul.map((itm) => {
+        const date =
+          selectedFilterType.value.type === 'attendance'
+            ? new Date(itm.date).toLocaleDateString('id-ID', { day: '2-digit' })
+            : new Date(itm?.payment_detail?.[0]?.payment?.payment_date).toLocaleDateString(
+                'id-ID',
+                { day: '2-digit' },
+              )
+
+        return {
+          date,
+          isPresent: selectedFilterType.value.type === 'attendance' && itm.status === 'present',
+          isRegistration:
+            selectedFilterType.value.type === 'payment' && itm?.bill_type === 'registration',
+        }
+      }),
+      agu: item.agu.map((itm) => {
+        const date =
+          selectedFilterType.value.type === 'attendance'
+            ? new Date(itm.date).toLocaleDateString('id-ID', { day: '2-digit' })
+            : new Date(itm?.payment_detail?.[0]?.payment?.payment_date).toLocaleDateString(
+                'id-ID',
+                { day: '2-digit' },
+              )
+
+        return {
+          date,
+          isPresent: selectedFilterType.value.type === 'attendance' && itm.status === 'present',
+          isRegistration:
+            selectedFilterType.value.type === 'payment' && itm?.bill_type === 'registration',
+        }
+      }),
+      sep: item.sep.map((itm) => {
+        const date =
+          selectedFilterType.value.type === 'attendance'
+            ? new Date(itm.date).toLocaleDateString('id-ID', { day: '2-digit' })
+            : new Date(itm?.payment_detail?.[0]?.payment?.payment_date).toLocaleDateString(
+                'id-ID',
+                { day: '2-digit' },
+              )
+
+        return {
+          date,
+          isPresent: selectedFilterType.value.type === 'attendance' && itm.status === 'present',
+          isRegistration:
+            selectedFilterType.value.type === 'payment' && itm?.bill_type === 'registration',
+        }
+      }),
+      okt: item.okt.map((itm) => {
+        const date =
+          selectedFilterType.value.type === 'attendance'
+            ? new Date(itm.date).toLocaleDateString('id-ID', { day: '2-digit' })
+            : new Date(itm?.payment_detail?.[0]?.payment?.payment_date).toLocaleDateString(
+                'id-ID',
+                { day: '2-digit' },
+              )
+
+        return {
+          date,
+          isPresent: selectedFilterType.value.type === 'attendance' && itm.status === 'present',
+          isRegistration:
+            selectedFilterType.value.type === 'payment' && itm?.bill_type === 'registration',
+        }
+      }),
+      nov: item.nov.map((itm) => {
+        const date =
+          selectedFilterType.value.type === 'attendance'
+            ? new Date(itm.date).toLocaleDateString('id-ID', { day: '2-digit' })
+            : new Date(itm?.payment_detail?.[0]?.payment?.payment_date).toLocaleDateString(
+                'id-ID',
+                { day: '2-digit' },
+              )
+
+        return {
+          date,
+          isPresent: selectedFilterType.value.type === 'attendance' && itm.status === 'present',
+          isRegistration:
+            selectedFilterType.value.type === 'payment' && itm?.bill_type === 'registration',
+        }
+      }),
+      des: item.des.map((itm) => {
+        const date =
+          selectedFilterType.value.type === 'attendance'
+            ? new Date(itm.date).toLocaleDateString('id-ID', { day: '2-digit' })
+            : new Date(itm?.payment_detail?.[0]?.payment?.payment_date).toLocaleDateString(
+                'id-ID',
+                { day: '2-digit' },
+              )
+
+        return {
+          date,
+          isPresent: selectedFilterType.value.type === 'attendance' && itm.status === 'present',
+          isRegistration:
+            selectedFilterType.value.type === 'payment' && itm?.bill_type === 'registration',
+        }
+      }),
+    }
+    worksheet.addRow(row)
+  })
+
+  worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+    if (rowNumber > 2) {
+      row.eachCell((cell, colNumber) => {
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' },
+        }
+
+        cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
+        if (colNumber === 1 || colNumber === 3 || colNumber === 5) {
+          cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true }
+        }
+      })
+      Object.entries(monthCols).forEach(([key, col]) => {
+        const raw = row.getCell(col).value
+
+        if (Array.isArray(raw)) {
+          row.getCell(col).value = {
+            richText: raw.flatMap((d, idx) => {
+              let color = 'FF000000'
+
+              if (selectedFilterType.value.type === 'attendance') {
+                color = d.isPresent ? 'FF00AA00' : 'FFFF0000'
+              } else if (selectedFilterType.value.type === 'payment') {
+                color = d.isRegistration ? 'FF0066FF' : 'FF00AA00'
+              }
+
+              return [
+                {
+                  text: d.date,
+                  font: { color: { argb: color } },
+                },
+                ...(idx < raw.length - 1
+                  ? [{ text: ', \n', font: { color: { argb: 'FF000000' } } }]
+                  : []),
+              ]
+            }),
+          }
+        }
+      })
+    }
+  })
+
+  const buffer = await workbook.xlsx.writeBuffer()
+  const blob = new Blob([buffer], { type: 'application/octet-stream' })
+  saveAs(blob, 'data_member.xlsx')
 }
 </script>
 <template>
@@ -570,18 +983,36 @@ const exportCsv = () => {
               <ul v-if="slotProps.data.sibling" class="list-disc">
                 <li v-for="(sibling, index) in slotProps.data.sibling" :key="index">
                   <div>
-                    <p>{{ sibling?.name }}</p>
+                    <router-link
+                      target="_blank"
+                      class="hover:text-blue-500 transition-all duration-300"
+                      :to="{
+                        name: 'admin.member.show',
+                        params: {
+                          id: sibling?.id,
+                        },
+                      }"
+                      >{{ sibling?.name }}</router-link
+                    >
                   </div>
                 </li>
               </ul>
             </template></Column
           >
-          <Column field="jan">
+          <Column
+            :pt="{
+              bodyCell: {
+                class: '!bg-gray-100',
+              },
+            }"
+            field="jan"
+          >
             <template #body="slotProps">
               <div v-if="selectedFilterType.type == 'attendance'">
                 <div v-if="slotProps.data.jan.length > 0">
                   <div v-for="(attendance, inx) in slotProps.data.jan" :key="inx">
                     <p
+                      v-tooltip="attendance.status == 'present' ? 'Hadir' : 'Absen'"
                       class="text-center"
                       :class="attendance.status == 'present' ? 'text-green-500' : 'text-red-500'"
                     >
@@ -594,14 +1025,43 @@ const exportCsv = () => {
                   </div>
                 </div>
               </div>
+              <div v-if="selectedFilterType.type == 'payment'">
+                <div v-if="slotProps.data.jan.length > 0">
+                  <div v-for="(bill, inx) in slotProps.data.jan" :key="inx">
+                    <p
+                      v-tooltip="
+                        bill?.bill_type == 'registration' ? 'Biaya Pendaftaran' : 'Iuran Bulanan'
+                      "
+                      class="text-center"
+                      :class="
+                        bill?.bill_type == 'registration' ? 'text-blue-500' : 'text-green-500'
+                      "
+                    >
+                      {{
+                        new Date(
+                          bill?.payment_detail?.[0]?.payment?.payment_date,
+                        ).toLocaleDateString('id-ID', { day: '2-digit' })
+                      }}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </template>
           </Column>
-          <Column field="feb">
+          <Column
+            :pt="{
+              bodyCell: {
+                class: '!bg-gray-50',
+              },
+            }"
+            field="feb"
+          >
             <template #body="slotProps">
               <div v-if="selectedFilterType.type == 'attendance'">
                 <div v-if="slotProps.data.feb.length > 0">
                   <div v-for="(attendance, inx) in slotProps.data.feb" :key="inx">
                     <p
+                      v-tooltip="attendance.status == 'present' ? 'Hadir' : 'Absen'"
                       class="text-center"
                       :class="attendance.status == 'present' ? 'text-green-500' : 'text-red-500'"
                     >
@@ -614,14 +1074,43 @@ const exportCsv = () => {
                   </div>
                 </div>
               </div>
+              <div v-if="selectedFilterType.type == 'payment'">
+                <div v-if="slotProps.data.feb.length > 0">
+                  <div v-for="(bill, inx) in slotProps.data.feb" :key="inx">
+                    <p
+                      v-tooltip="
+                        bill?.bill_type == 'registration' ? 'Biaya Pendaftaran' : 'Iuran Bulanan'
+                      "
+                      class="text-center"
+                      :class="
+                        bill?.bill_type == 'registration' ? 'text-blue-500' : 'text-green-500'
+                      "
+                    >
+                      {{
+                        new Date(
+                          bill?.payment_detail?.[0]?.payment?.payment_date,
+                        ).toLocaleDateString('id-ID', { day: '2-digit' })
+                      }}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </template>
           </Column>
-          <Column field="mar">
+          <Column
+            :pt="{
+              bodyCell: {
+                class: '!bg-gray-100',
+              },
+            }"
+            field="mar"
+          >
             <template #body="slotProps">
               <div v-if="selectedFilterType.type == 'attendance'">
                 <div v-if="slotProps.data.mar.length > 0">
                   <div v-for="(attendance, inx) in slotProps.data.mar" :key="inx">
                     <p
+                      v-tooltip="attendance.status == 'present' ? 'Hadir' : 'Absen'"
                       class="text-center"
                       :class="attendance.status == 'present' ? 'text-green-500' : 'text-red-500'"
                     >
@@ -634,14 +1123,43 @@ const exportCsv = () => {
                   </div>
                 </div>
               </div>
+              <div v-if="selectedFilterType.type == 'payment'">
+                <div v-if="slotProps.data.mar.length > 0">
+                  <div v-for="(bill, inx) in slotProps.data.mar" :key="inx">
+                    <p
+                      v-tooltip="
+                        bill?.bill_type == 'registration' ? 'Biaya Pendaftaran' : 'Iuran Bulanan'
+                      "
+                      class="text-center"
+                      :class="
+                        bill?.bill_type == 'registration' ? 'text-blue-500' : 'text-green-500'
+                      "
+                    >
+                      {{
+                        new Date(
+                          bill?.payment_detail?.[0]?.payment?.payment_date,
+                        ).toLocaleDateString('id-ID', { day: '2-digit' })
+                      }}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </template>
           </Column>
-          <Column field="apr">
+          <Column
+            :pt="{
+              bodyCell: {
+                class: '!bg-gray-50',
+              },
+            }"
+            field="apr"
+          >
             <template #body="slotProps">
               <div v-if="selectedFilterType.type == 'attendance'">
                 <div v-if="slotProps.data.apr.length > 0">
                   <div v-for="(attendance, inx) in slotProps.data.apr" :key="inx">
                     <p
+                      v-tooltip="attendance.status == 'present' ? 'Hadir' : 'Absen'"
                       class="text-center"
                       :class="attendance.status == 'present' ? 'text-green-500' : 'text-red-500'"
                     >
@@ -654,14 +1172,43 @@ const exportCsv = () => {
                   </div>
                 </div>
               </div>
+              <div v-if="selectedFilterType.type == 'payment'">
+                <div v-if="slotProps.data.apr.length > 0">
+                  <div v-for="(bill, inx) in slotProps.data.apr" :key="inx">
+                    <p
+                      v-tooltip="
+                        bill?.bill_type == 'registration' ? 'Biaya Pendaftaran' : 'Iuran Bulanan'
+                      "
+                      class="text-center"
+                      :class="
+                        bill?.bill_type == 'registration' ? 'text-blue-500' : 'text-green-500'
+                      "
+                    >
+                      {{
+                        new Date(
+                          bill?.payment_detail?.[0]?.payment?.payment_date,
+                        ).toLocaleDateString('id-ID', { day: '2-digit' })
+                      }}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </template>
           </Column>
-          <Column field="mei">
+          <Column
+            :pt="{
+              bodyCell: {
+                class: '!bg-gray-100',
+              },
+            }"
+            field="mei"
+          >
             <template #body="slotProps">
               <div v-if="selectedFilterType.type == 'attendance'">
                 <div v-if="slotProps.data.mei.length > 0">
                   <div v-for="(attendance, inx) in slotProps.data.mei" :key="inx">
                     <p
+                      v-tooltip="attendance.status == 'present' ? 'Hadir' : 'Absen'"
                       class="text-center"
                       :class="attendance.status == 'present' ? 'text-green-500' : 'text-red-500'"
                     >
@@ -674,14 +1221,43 @@ const exportCsv = () => {
                   </div>
                 </div>
               </div>
+              <div v-if="selectedFilterType.type == 'payment'">
+                <div v-if="slotProps.data.mei.length > 0">
+                  <div v-for="(bill, inx) in slotProps.data.mei" :key="inx">
+                    <p
+                      v-tooltip="
+                        bill?.bill_type == 'registration' ? 'Biaya Pendaftaran' : 'Iuran Bulanan'
+                      "
+                      class="text-center"
+                      :class="
+                        bill?.bill_type == 'registration' ? 'text-blue-500' : 'text-green-500'
+                      "
+                    >
+                      {{
+                        new Date(
+                          bill?.payment_detail?.[0]?.payment?.payment_date,
+                        ).toLocaleDateString('id-ID', { day: '2-digit' })
+                      }}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </template>
           </Column>
-          <Column field="jun">
+          <Column
+            :pt="{
+              bodyCell: {
+                class: '!bg-gray-50',
+              },
+            }"
+            field="jun"
+          >
             <template #body="slotProps">
               <div v-if="selectedFilterType.type == 'attendance'">
                 <div v-if="slotProps.data.jun.length > 0">
                   <div v-for="(attendance, inx) in slotProps.data.jun" :key="inx">
                     <p
+                      v-tooltip="attendance.status == 'present' ? 'Hadir' : 'Absen'"
                       class="text-center"
                       :class="attendance.status == 'present' ? 'text-green-500' : 'text-red-500'"
                     >
@@ -694,14 +1270,43 @@ const exportCsv = () => {
                   </div>
                 </div>
               </div>
+              <div v-if="selectedFilterType.type == 'payment'">
+                <div v-if="slotProps.data.jun.length > 0">
+                  <div v-for="(bill, inx) in slotProps.data.jun" :key="inx">
+                    <p
+                      v-tooltip="
+                        bill?.bill_type == 'registration' ? 'Biaya Pendaftaran' : 'Iuran Bulanan'
+                      "
+                      class="text-center"
+                      :class="
+                        bill?.bill_type == 'registration' ? 'text-blue-500' : 'text-green-500'
+                      "
+                    >
+                      {{
+                        new Date(
+                          bill?.payment_detail?.[0]?.payment?.payment_date,
+                        ).toLocaleDateString('id-ID', { day: '2-digit' })
+                      }}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </template>
           </Column>
-          <Column field="jul">
+          <Column
+            :pt="{
+              bodyCell: {
+                class: '!bg-gray-100',
+              },
+            }"
+            field="jul"
+          >
             <template #body="slotProps">
               <div v-if="selectedFilterType.type == 'attendance'">
                 <div v-if="slotProps.data.jul.length > 0">
                   <div v-for="(attendance, inx) in slotProps.data.jul" :key="inx">
                     <p
+                      v-tooltip="attendance.status == 'present' ? 'Hadir' : 'Absen'"
                       class="text-center"
                       :class="attendance.status == 'present' ? 'text-green-500' : 'text-red-500'"
                     >
@@ -714,14 +1319,43 @@ const exportCsv = () => {
                   </div>
                 </div>
               </div>
+              <div v-if="selectedFilterType.type == 'payment'">
+                <div v-if="slotProps.data.jul.length > 0">
+                  <div v-for="(bill, inx) in slotProps.data.jul" :key="inx">
+                    <p
+                      v-tooltip="
+                        bill?.bill_type == 'registration' ? 'Biaya Pendaftaran' : 'Iuran Bulanan'
+                      "
+                      class="text-center"
+                      :class="
+                        bill?.bill_type == 'registration' ? 'text-blue-500' : 'text-green-500'
+                      "
+                    >
+                      {{
+                        new Date(
+                          bill?.payment_detail?.[0]?.payment?.payment_date,
+                        ).toLocaleDateString('id-ID', { day: '2-digit' })
+                      }}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </template>
           </Column>
-          <Column field="agu">
+          <Column
+            :pt="{
+              bodyCell: {
+                class: '!bg-gray-50',
+              },
+            }"
+            field="agu"
+          >
             <template #body="slotProps">
               <div v-if="selectedFilterType.type == 'attendance'">
                 <div v-if="slotProps.data.agu.length > 0">
                   <div v-for="(attendance, inx) in slotProps.data.agu" :key="inx">
                     <p
+                      v-tooltip="attendance.status == 'present' ? 'Hadir' : 'Absen'"
                       class="text-center"
                       :class="attendance.status == 'present' ? 'text-green-500' : 'text-red-500'"
                     >
@@ -734,14 +1368,43 @@ const exportCsv = () => {
                   </div>
                 </div>
               </div>
+              <div v-if="selectedFilterType.type == 'payment'">
+                <div v-if="slotProps.data.agu.length > 0">
+                  <div v-for="(bill, inx) in slotProps.data.agu" :key="inx">
+                    <p
+                      v-tooltip="
+                        bill?.bill_type == 'registration' ? 'Biaya Pendaftaran' : 'Iuran Bulanan'
+                      "
+                      class="text-center"
+                      :class="
+                        bill?.bill_type == 'registration' ? 'text-blue-500' : 'text-green-500'
+                      "
+                    >
+                      {{
+                        new Date(
+                          bill?.payment_detail?.[0]?.payment?.payment_date,
+                        ).toLocaleDateString('id-ID', { day: '2-digit' })
+                      }}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </template>
           </Column>
-          <Column field="sep">
+          <Column
+            :pt="{
+              bodyCell: {
+                class: '!bg-gray-100',
+              },
+            }"
+            field="sep"
+          >
             <template #body="slotProps">
               <div v-if="selectedFilterType.type == 'attendance'">
                 <div v-if="slotProps.data.sep.length > 0">
                   <div v-for="(attendance, inx) in slotProps.data.sep" :key="inx">
                     <p
+                      v-tooltip="attendance.status == 'present' ? 'Hadir' : 'Absen'"
                       class="text-center"
                       :class="attendance.status == 'present' ? 'text-green-500' : 'text-red-500'"
                     >
@@ -754,14 +1417,43 @@ const exportCsv = () => {
                   </div>
                 </div>
               </div>
+              <div v-if="selectedFilterType.type == 'payment'">
+                <div v-if="slotProps.data.sep.length > 0">
+                  <div v-for="(bill, inx) in slotProps.data.sep" :key="inx">
+                    <p
+                      v-tooltip="
+                        bill?.bill_type == 'registration' ? 'Biaya Pendaftaran' : 'Iuran Bulanan'
+                      "
+                      class="text-center"
+                      :class="
+                        bill?.bill_type == 'registration' ? 'text-blue-500' : 'text-green-500'
+                      "
+                    >
+                      {{
+                        new Date(
+                          bill?.payment_detail?.[0]?.payment?.payment_date,
+                        ).toLocaleDateString('id-ID', { day: '2-digit' })
+                      }}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </template>
           </Column>
-          <Column field="okt">
+          <Column
+            :pt="{
+              bodyCell: {
+                class: '!bg-gray-50',
+              },
+            }"
+            field="okt"
+          >
             <template #body="slotProps">
               <div v-if="selectedFilterType.type == 'attendance'">
                 <div v-if="slotProps.data.okt.length > 0">
                   <div v-for="(attendance, inx) in slotProps.data.okt" :key="inx">
                     <p
+                      v-tooltip="attendance.status == 'present' ? 'Hadir' : 'Absen'"
                       class="text-center"
                       :class="attendance.status == 'present' ? 'text-green-500' : 'text-red-500'"
                     >
@@ -774,14 +1466,43 @@ const exportCsv = () => {
                   </div>
                 </div>
               </div>
+              <div v-if="selectedFilterType.type == 'payment'">
+                <div v-if="slotProps.data.okt.length > 0">
+                  <div v-for="(bill, inx) in slotProps.data.okt" :key="inx">
+                    <p
+                      v-tooltip="
+                        bill?.bill_type == 'registration' ? 'Biaya Pendaftaran' : 'Iuran Bulanan'
+                      "
+                      class="text-center"
+                      :class="
+                        bill?.bill_type == 'registration' ? 'text-blue-500' : 'text-green-500'
+                      "
+                    >
+                      {{
+                        new Date(
+                          bill?.payment_detail?.[0]?.payment?.payment_date,
+                        ).toLocaleDateString('id-ID', { day: '2-digit' })
+                      }}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </template>
           </Column>
-          <Column field="nov">
+          <Column
+            :pt="{
+              bodyCell: {
+                class: '!bg-gray-100',
+              },
+            }"
+            field="nov"
+          >
             <template #body="slotProps">
               <div v-if="selectedFilterType.type == 'attendance'">
                 <div v-if="slotProps.data.nov.length > 0">
                   <div v-for="(attendance, inx) in slotProps.data.nov" :key="inx">
                     <p
+                      v-tooltip="attendance.status == 'present' ? 'Hadir' : 'Absen'"
                       class="text-center"
                       :class="attendance.status == 'present' ? 'text-green-500' : 'text-red-500'"
                     >
@@ -794,14 +1515,43 @@ const exportCsv = () => {
                   </div>
                 </div>
               </div>
+              <div v-if="selectedFilterType.type == 'payment'">
+                <div v-if="slotProps.data.nov.length > 0">
+                  <div v-for="(bill, inx) in slotProps.data.nov" :key="inx">
+                    <p
+                      v-tooltip="
+                        bill?.bill_type == 'registration' ? 'Biaya Pendaftaran' : 'Iuran Bulanan'
+                      "
+                      class="text-center"
+                      :class="
+                        bill?.bill_type == 'registration' ? 'text-blue-500' : 'text-green-500'
+                      "
+                    >
+                      {{
+                        new Date(
+                          bill?.payment_detail?.[0]?.payment?.payment_date,
+                        ).toLocaleDateString('id-ID', { day: '2-digit' })
+                      }}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </template>
           </Column>
-          <Column field="des">
+          <Column
+            :pt="{
+              bodyCell: {
+                class: '!bg-gray-50',
+              },
+            }"
+            field="des"
+          >
             <template #body="slotProps">
               <div v-if="selectedFilterType.type == 'attendance'">
                 <div v-if="slotProps.data.des.length > 0">
                   <div v-for="(attendance, inx) in slotProps.data.des" :key="inx">
                     <p
+                      v-tooltip="attendance.status == 'present' ? 'Hadir' : 'Absen'"
                       class="text-center"
                       :class="attendance.status == 'present' ? 'text-green-500' : 'text-red-500'"
                     >
@@ -809,6 +1559,27 @@ const exportCsv = () => {
                         new Date(attendance.date).toLocaleDateString('id-ID', {
                           day: '2-digit',
                         })
+                      }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div v-if="selectedFilterType.type == 'payment'">
+                <div v-if="slotProps.data.des.length > 0">
+                  <div v-for="(bill, inx) in slotProps.data.des" :key="inx">
+                    <p
+                      v-tooltip="
+                        bill?.bill_type == 'registration' ? 'Biaya Pendaftaran' : 'Iuran Bulanan'
+                      "
+                      class="text-center"
+                      :class="
+                        bill?.bill_type == 'registration' ? 'text-blue-500' : 'text-green-500'
+                      "
+                    >
+                      {{
+                        new Date(
+                          bill?.payment_detail?.[0]?.payment?.payment_date,
+                        ).toLocaleDateString('id-ID', { day: '2-digit' })
                       }}
                     </p>
                   </div>
